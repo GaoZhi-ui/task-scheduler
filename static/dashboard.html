@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>调度器看板</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; }
+h1 { font-size: 20px; margin-bottom: 20px; color: #38bdf8; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.card { background: #1e293b; border-radius: 8px; padding: 16px; border: 1px solid #334155; }
+.card .label { font-size: 12px; color: #94a3b8; text-transform: uppercase; }
+.card .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
+.card .value.ok { color: #22c55e; }
+.card .value.warn { color: #eab308; }
+.card .value.fail { color: #ef4444; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px; border-bottom: 1px solid #334155; color: #94a3b8; font-weight: 500; }
+td { padding: 8px; border-bottom: 1px solid #1e293b; }
+.status-done { color: #22c55e; }
+.status-failed { color: #ef4444; }
+.status-queued { color: #eab308; }
+.refresh { text-align: right; margin-bottom: 8px; font-size: 12px; color: #64748b; }
+</style>
+</head>
+<body>
+<h1>⚡ 调度器看板</h1>
+<div class="grid" id="stats"></div>
+<div class="refresh" id="refresh">自动刷新中...</div>
+<h2 style="font-size:16px;margin-bottom:12px;">最近任务</h2>
+<table><thead><tr>
+<th>任务ID</th><th>类型</th><th>状态</th><th>耗时</th><th>时间</th>
+</tr></thead><tbody id="tasks"></tbody></table>
+
+<script>
+async function load() {
+  try {
+    const [statusRes, historyRes] = await Promise.all([
+      fetch('/status'), fetch('/tasks/history?limit=20')
+    ]);
+    const status = await statusRes.json();
+    const history = await historyRes.json();
+    
+    const tasks = Array.isArray(history) ? history : [];
+    
+    document.getElementById('stats').innerHTML = `
+      <div class="card"><div class="label">调度器</div><div class="value ${status.status === 'ok' ? 'ok' : 'warn'}">${status.status}</div></div>
+      <div class="card"><div class="label">Redis</div><div class="value ${status.redis === 'connected' ? 'ok' : 'fail'}">${status.redis === 'connected' ? '已连接' : '断开'}</div></div>
+      <div class="card"><div class="label">Worker 并发</div><div class="value">${status.worker?.max_concurrent || '?'}</div></div>
+      <div class="card"><div class="label">提交任务数</div><div class="value">${status.tasks?.total_submitted || 0}</div></div>
+      <div class="card"><div class="label">成功率</div><div class="value ${(status.tasks?.total_submitted || 0) > 0 ? 'ok' : ''}">
+        ${tasks.length > 0 ? Math.round(tasks.filter(t => t.status === 'done').length / tasks.length * 100) + '%' : '-'}
+      </div></div>
+      <div class="card"><div class="label">队列</div><div class="value">${status.queue?.priority_queues?.length || 0}</div></div>
+    `;
+    
+    document.getElementById('tasks').innerHTML = tasks.map(t => `
+      <tr>
+        <td style="font-family:monospace;font-size:12px;">${t.job_id?.substring(0, 25) || '-'}</td>
+        <td>${t.task_type || '-'}</td>
+        <td class="status-${t.status}">${t.status}</td>
+        <td>${t.duration_ms || 0}ms</td>
+        <td>${(t.created_at || '').substring(11, 19) || '-'}</td>
+      </tr>
+    `).join('');
+    
+    document.getElementById('refresh').textContent = `更新于 ${new Date().toLocaleTimeString()}，3秒后刷新`;
+  } catch(e) {
+    document.getElementById('refresh').textContent = `加载失败: ${e.message}`;
+  }
+}
+load();
+setInterval(load, 3000);
+</script>
+</body>
+</html>

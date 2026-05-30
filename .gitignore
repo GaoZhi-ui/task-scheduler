@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.db
+.env
+.venv
+venv/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Generated files
+*.db
+*.log
+__pycache__/
+.crash_*
+debug_*.sh
+step*_verify.py
+test_ds*.py
